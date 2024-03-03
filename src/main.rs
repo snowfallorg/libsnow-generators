@@ -48,7 +48,7 @@ async fn main() -> Result<()> {
     let args = Args::parse();
 
     if args.verbose {
-        std::env::set_var("RUST_LOG", "libsnow_generator=trace");
+        std::env::set_var("RUST_LOG", "libsnow_generator=debug");
     }
 
     pretty_env_logger::init();
