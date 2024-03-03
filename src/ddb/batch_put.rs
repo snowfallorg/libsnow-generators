@@ -7,18 +7,24 @@ use aws_sdk_dynamodb::{
 use log::{error, info, trace};
 use std::collections::HashMap;
 
-pub async fn batch_store_put(client: &Client, store: &HashMap<String, Store>, table: &str) -> Result<()> {
+pub async fn batch_store_put(
+    client: &Client,
+    store: &HashMap<String, Store>,
+    table: &str,
+) -> Result<()> {
     let ops = store
         .iter()
         .map(|(_, v)| {
             WriteRequest::builder()
-                .set_put_request(Some(
-                    PutRequest::builder()
+                .set_put_request(Some({
+                    let mut putreq = PutRequest::builder()
                         .item("store", AttributeValue::S(v.store.clone()))
-                        .item("attribute", AttributeValue::S(v.attribute.clone()))
-                        .build()
-                        .expect("Failed to build PutRequest"),
-                ))
+                        .item("attribute", AttributeValue::S(v.attribute.clone()));
+                    if let Some(version) = &v.version {
+                        putreq = putreq.item("version", AttributeValue::S(version.clone()));
+                    }
+                    putreq.build().expect("Failed to build PutRequest")
+                }))
                 .build()
         })
         .collect::<Vec<WriteRequest>>();
