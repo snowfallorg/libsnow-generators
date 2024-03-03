@@ -5,8 +5,8 @@ use anyhow::Result;
 use aws_config::meta::region::RegionProviderChain;
 use aws_config::BehaviorVersion;
 use clap::{Parser, Subcommand};
-use libsnow_generator::ddb::batch_put::batch_store_put;
-use libsnow_generator::{
+use libsnow_generators::ddb::batch_put::batch_store_put;
+use libsnow_generators::{
     ddb::nix::get_store,
     revisions::{get_revisions, update_markers},
     s3::db::create_db,

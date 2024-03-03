@@ -1,5 +1,5 @@
 [package]
-name = "libsnow-generator"
+name = "libsnow-generators"
 version = "0.0.1"
 edition = "2021"
 
