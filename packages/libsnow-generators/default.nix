@@ -29,4 +29,9 @@ rustPlatform.buildRustPackage rec {
     openssl
     sqlite
   ];
+
+  patchPhase = ''
+    substituteInPlace src/ddb/mod.rs --replace "const REGISTRY: &str = \"./registry.nix\"" \
+      "const REGISTRY: &str = \"${../../registry.nix}\""
+  '';
 }

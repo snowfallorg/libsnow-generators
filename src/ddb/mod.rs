@@ -8,4 +8,7 @@ pub mod batch_put;
 pub struct Store {
     pub attribute: String,
     pub store: String,
+    pub version: Option<String>,
 }
+
+pub const REGISTRY: &str = "./registry.nix";

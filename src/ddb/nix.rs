@@ -1,3 +1,5 @@
+use crate::ddb::REGISTRY;
+
 use super::Store;
 use log::{debug, error, info};
 use serde::Deserialize;
@@ -6,10 +8,11 @@ use tokio::process::Command;
 
 #[derive(Deserialize, Debug, Clone)]
 struct Package {
-    outputs: Option<HashMap<String, String>>,
+    #[serde(rename = "storePaths")]
+    outputs: HashMap<String, String>,
+    version: Option<String>,
 }
 
-//nix-env -qa --meta --json --out-path -f https://github.com/NixOS/nixpkgs/archive/5f64a12a728902226210bf01d25ec6cbb9d9265b.tar.gz
 pub async fn get_store(rev: &str) -> HashMap<String, Store> {
     let nixpath = Command::new("nix-instantiate")
         .arg("--eval")
@@ -30,40 +33,37 @@ pub async fn get_store(rev: &str) -> HashMap<String, Store> {
     let nixpath = String::from_utf8_lossy(&nixpath.stdout).trim().to_string();
     debug!("nixpath: {}", nixpath);
 
-    let output = Command::new("nix-env")
+    let output = Command::new("nix-instantiate")
         .env("NIXPKGS_ALLOW_UNFREE", "1")
         .env("NIXPKGS_ALLOW_INSECURE", "1")
         // .env("NIXPKGS_ALLOW_BROKEN", "0")
         // .env("NIXPKGS_ALLOW_UNSUPPORTED_SYSTEM", "0")
-        .arg("-f")
-        .arg(&nixpath)
+        .arg("--eval")
+        .arg("-E")
+        .arg(format!("with import {} {{}}; (import {} {{ inherit lib; }}).genRegistry \"x86_64-linux\" pkgs", nixpath, REGISTRY))
         .arg("-I")
         .arg(format!("nixpkgs={}", nixpath))
-        .arg("-qa")
-        // .arg("--meta")
         .arg("--json")
-        .arg("--out-path")
-        .arg("--arg")
-        .arg("config")
-        .arg(format!(
-            "import {}/pkgs/top-level/packages-config.nix",
-            nixpath
-        ))
+        .arg("--strict")
         .output()
         .await
         .expect("failed to execute process");
 
-    let output: HashMap<String, Package> = serde_json::from_slice(&output.stdout).expect("failed to parse nix-env output");
+    println!("{}", String::from_utf8_lossy(&output.stderr));
 
-    info!("nix-env: got {} packages", output.len());
+
+    let output: HashMap<String, Package> = serde_json::from_slice(&output.stdout).expect("failed to parse nix-instantiate output");
+
+    info!("nix-instantiate: got {} packages", output.len());
 
     let store = output
         .iter()
         .filter_map(|(attr, pkg)| {
-            if let Some(outpath) = pkg.outputs.as_ref().and_then(|x| x.get("out")) {
+            if let Some(outpath) = pkg.outputs.get("out") {
                 let store = Store {
                     attribute: attr.to_string(),
                     store: outpath.split("/").last().unwrap().to_string(),
+                    version: pkg.version.clone()
                 };
 
                 Some((attr.to_string(), store))
@@ -73,7 +73,7 @@ pub async fn get_store(rev: &str) -> HashMap<String, Store> {
         })
         .collect::<HashMap<String, Store>>();
 
-    info!("nix-env: got {} store paths", store.len());
+    info!("nix-instantiate: got {} store paths", store.len());
 
     return store;
 }
