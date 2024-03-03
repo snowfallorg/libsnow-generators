@@ -1,5 +1,5 @@
 use super::Store;
-use log::{debug, info};
+use log::{debug, error, info};
 use serde::Deserialize;
 use std::collections::HashMap;
 use tokio::process::Command;
@@ -23,6 +23,10 @@ pub async fn get_store(rev: &str) -> HashMap<String, Store> {
         .output()
         .await
         .expect("failed to execute process");
+    if !nixpath.status.success() {
+        error!("nix-instantiate failed: {}", String::from_utf8_lossy(&nixpath.stderr));
+        std::process::exit(1);
+    }
     let nixpath = String::from_utf8_lossy(&nixpath.stdout).trim().to_string();
     debug!("nixpath: {}", nixpath);
 
