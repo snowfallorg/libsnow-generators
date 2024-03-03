@@ -1,7 +1,7 @@
 use std::fs;
 use std::io::Write;
 
-use anyhow::Result;
+use anyhow::{Context, Result};
 use aws_config::meta::region::RegionProviderChain;
 use aws_config::BehaviorVersion;
 use clap::{Parser, Subcommand};
@@ -97,7 +97,7 @@ async fn main() -> Result<()> {
                         i + 1,
                         revision.len()
                     );
-                    let storeset = get_store(r).await;
+                    let storeset = get_store(r.split('.').last().context("Failed to get revision")?).await;
 
                     // Read processed
                     let prevpaths =
