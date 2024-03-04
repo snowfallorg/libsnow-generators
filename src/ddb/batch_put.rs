@@ -14,12 +14,12 @@ pub async fn batch_store_put(
 ) -> Result<()> {
     let ops = store
         .iter()
-        .map(|(_, v)| {
+        .map(|(k, v)| {
             WriteRequest::builder()
                 .set_put_request(Some({
                     let mut putreq = PutRequest::builder()
-                        .item("store", AttributeValue::S(v.store.clone()))
-                        .item("attribute", AttributeValue::S(v.attribute.clone()));
+                        .item("store", AttributeValue::S(k.to_string()))
+                        .item("attribute", AttributeValue::L(v.attribute.iter().map(|x| AttributeValue::S(x.to_string())).collect::<Vec<AttributeValue>>()));
                     if let Some(version) = &v.version {
                         putreq = putreq.item("version", AttributeValue::S(version.clone()));
                     }

@@ -76,22 +76,22 @@ pub async fn get_store(rev: &str) -> HashMap<String, Store> {
 
     info!("nix-instantiate: got {} packages", output.len());
 
-    let store = output
-        .iter()
-        .filter_map(|(attr, pkg)| {
-            if let Some(outpath) = pkg.outputs.get("out") {
-                let store = Store {
-                    attribute: attr.to_string(),
-                    store: outpath.split("/").last().unwrap().to_string(),
-                    version: pkg.version.clone(),
-                };
-
-                Some((attr.to_string(), store))
+    let mut store: HashMap<String, Store> = HashMap::new();
+    for (attr, pkg) in &output {
+        if let Some(outpath) = pkg.outputs.get("out") {
+            if let Some(store_val) = store.get_mut(outpath) {
+                store_val.attribute.push(attr.to_string());
             } else {
-                None
+                store.insert(
+                    outpath.to_string(),
+                    Store {
+                        attribute: vec![attr.to_string()],
+                        version: pkg.version.clone(),
+                    },
+                );
             }
-        })
-        .collect::<HashMap<String, Store>>();
+        }
+    }
 
     info!("nix-instantiate: got {} store paths", store.len());
 

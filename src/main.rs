@@ -111,7 +111,7 @@ async fn main() -> Result<()> {
 
                     let new_storeset = storeset
                         .iter()
-                        .filter(|(_, v)| !paths.contains(&v.store.as_str()))
+                        .filter(|(k, _v)| !paths.contains(&k.as_str()))
                         .map(|(k, v)| (k.to_string(), v.clone()))
                         .collect::<std::collections::HashMap<String, _>>();
 
@@ -125,9 +125,9 @@ async fn main() -> Result<()> {
 
                     file.write_all(
                         storeset
-                            .values()
-                            .map(|x| x.store.to_string())
-                            .collect::<Vec<String>>()
+                            .keys()
+                            .map(String::to_string)
+                            .collect::<Vec<_>>()
                             .join("\n")
                             .as_bytes(),
                     )
