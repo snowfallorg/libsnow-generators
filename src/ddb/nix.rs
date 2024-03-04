@@ -40,7 +40,7 @@ pub async fn get_store(rev: &str) -> HashMap<String, Store> {
         // .env("NIXPKGS_ALLOW_UNSUPPORTED_SYSTEM", "0")
         .arg("--eval")
         .arg("-E")
-        .arg(format!("with import {} {{}}; (import {} {{ inherit lib; }}).genRegistry \"x86_64-linux\" pkgs", nixpath, REGISTRY))
+        .arg(format!("with import {nixpath} {{ config = import {nixpath}/pkgs/top-level/packages-config.nix; }}; (import {REGISTRY} {{ inherit lib; }}).genRegistry \"x86_64-linux\" pkgs"))
         .arg("-I")
         .arg(format!("nixpkgs={}", nixpath))
         .arg("--json")
