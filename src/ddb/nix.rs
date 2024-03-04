@@ -1,7 +1,7 @@
 use crate::ddb::REGISTRY;
 
 use super::Store;
-use log::{debug, error, info};
+use log::{debug, error, info, warn};
 use serde::Deserialize;
 use std::collections::HashMap;
 use tokio::process::Command;
@@ -27,13 +27,16 @@ pub async fn get_store(rev: &str) -> HashMap<String, Store> {
         .await
         .expect("failed to execute process");
     if !nixpath.status.success() {
-        error!("nix-instantiate failed: {}", String::from_utf8_lossy(&nixpath.stderr));
+        error!(
+            "nix-instantiate failed: {}",
+            String::from_utf8_lossy(&nixpath.stderr)
+        );
         std::process::exit(1);
     }
     let nixpath = String::from_utf8_lossy(&nixpath.stdout).trim().to_string();
     debug!("nixpath: {}", nixpath);
 
-    let output = Command::new("nix-instantiate")
+    let mut output = Command::new("nix-instantiate")
         .env("NIXPKGS_ALLOW_UNFREE", "1")
         .env("NIXPKGS_ALLOW_INSECURE", "1")
         // .env("NIXPKGS_ALLOW_BROKEN", "0")
@@ -49,10 +52,27 @@ pub async fn get_store(rev: &str) -> HashMap<String, Store> {
         .await
         .expect("failed to execute process");
 
-    println!("{}", String::from_utf8_lossy(&output.stderr));
+    if !output.status.success() {
+        warn!("nix-instantiate failed, falling back to default nixpkgs config");
+        output = Command::new("nix-instantiate")
+        .env("NIXPKGS_ALLOW_UNFREE", "1")
+        .env("NIXPKGS_ALLOW_INSECURE", "1")
+        // .env("NIXPKGS_ALLOW_BROKEN", "0")
+        // .env("NIXPKGS_ALLOW_UNSUPPORTED_SYSTEM", "0")
+        .arg("--eval")
+        .arg("-E")
+        .arg(format!("with import {nixpath} {{ config = {{ allowAliases = false; }}; }}; (import {REGISTRY} {{ inherit lib; }}).genRegistry \"x86_64-linux\" pkgs"))
+        .arg("-I")
+        .arg(format!("nixpkgs={}", nixpath))
+        .arg("--json")
+        .arg("--strict")
+        .output()
+        .await
+        .expect("failed to execute process");
+    }
 
-
-    let output: HashMap<String, Package> = serde_json::from_slice(&output.stdout).expect("failed to parse nix-instantiate output");
+    let output: HashMap<String, Package> =
+        serde_json::from_slice(&output.stdout).expect("failed to parse nix-instantiate output");
 
     info!("nix-instantiate: got {} packages", output.len());
 
@@ -63,7 +83,7 @@ pub async fn get_store(rev: &str) -> HashMap<String, Store> {
                 let store = Store {
                     attribute: attr.to_string(),
                     store: outpath.split("/").last().unwrap().to_string(),
-                    version: pkg.version.clone()
+                    version: pkg.version.clone(),
                 };
 
                 Some((attr.to_string(), store))
