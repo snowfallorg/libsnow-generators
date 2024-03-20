@@ -185,8 +185,9 @@ pub async fn create_db(
         let body = ByteStream::from_path(Path::new(&format!("{}.br", db))).await?;
         client
             .put_object()
+            .content_encoding("br")
             .bucket(bucket)
-            .key(&format!("{}/{}", channel, rev))
+            .key(rev)
             .body(body)
             .send()
             .await?;
