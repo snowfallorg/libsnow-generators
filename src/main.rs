@@ -6,6 +6,7 @@ use aws_config::meta::region::RegionProviderChain;
 use aws_config::BehaviorVersion;
 use clap::{Parser, Subcommand};
 use libsnow_generators::ddb::batch_put::batch_store_put;
+use libsnow_generators::revisions::add_failed_revision;
 use libsnow_generators::{
     ddb::nix::get_store,
     revisions::{get_revisions, update_markers},
@@ -85,7 +86,7 @@ async fn main() -> Result<()> {
                 }
             }
         }
-        Commands::Ddb { table }=> {
+        Commands::Ddb { table } => {
             let client = aws_sdk_dynamodb::Client::new(&config);
             for (i, (channel, revs)) in revision.iter().enumerate() {
                 for (j, r) in revs.iter().enumerate() {
@@ -97,41 +98,51 @@ async fn main() -> Result<()> {
                         i + 1,
                         revision.len()
                     );
-                    let storeset = get_store(r.split('.').last().context("Failed to get revision")?).await;
+                    let storeset =
+                        get_store(r.split('.').last().context("Failed to get revision")?).await;
 
-                    // Read processed
-                    let prevpaths =
-                        fs::read_to_string(format!("{}/{}/store-paths", args.processed, channel))
-                            .unwrap_or_default();
-                    let paths = prevpaths.split("\n").collect::<Vec<&str>>();
+                    if let Ok(storeset) = storeset {
+                        // Read processed
+                        let prevpaths = fs::read_to_string(format!(
+                            "{}/{}/store-paths",
+                            args.processed, channel
+                        ))
+                        .unwrap_or_default();
+                        let paths = prevpaths.split("\n").collect::<Vec<&str>>();
 
-                    // Write to processed
-                    let mut file =
-                        fs::File::create(format!("{}/{}/store-paths", args.processed, channel))?;
+                        // Write to processed
+                        let mut file = fs::File::create(format!(
+                            "{}/{}/store-paths",
+                            args.processed, channel
+                        ))?;
 
-                    let new_storeset = storeset
-                        .iter()
-                        .filter(|(k, _v)| !paths.contains(&k.as_str()))
-                        .map(|(k, v)| (k.to_string(), v.clone()))
-                        .collect::<std::collections::HashMap<String, _>>();
+                        let new_storeset = storeset
+                            .iter()
+                            .filter(|(k, _v)| !paths.contains(&k.as_str()))
+                            .map(|(k, v)| (k.to_string(), v.clone()))
+                            .collect::<std::collections::HashMap<String, _>>();
 
-                    debug!(
-                        "Total paths: {}. New paths: {}",
-                        paths.len(),
-                        new_storeset.len()
-                    );
+                        debug!(
+                            "Total paths: {}. New paths: {}",
+                            paths.len(),
+                            new_storeset.len()
+                        );
 
-                    batch_store_put(&client, &new_storeset, &table).await?;
+                        batch_store_put(&client, &new_storeset, &table).await?;
 
-                    file.write_all(
-                        storeset
-                            .keys()
-                            .map(String::to_string)
-                            .collect::<Vec<_>>()
-                            .join("\n")
-                            .as_bytes(),
-                    )
-                    .expect("Failed to write to store-paths file");
+                        file.write_all(
+                            storeset
+                                .keys()
+                                .map(String::to_string)
+                                .collect::<Vec<_>>()
+                                .join("\n")
+                                .as_bytes(),
+                        )
+                        .expect("Failed to write to store-paths file");
+                    } else {
+                        error!("Failed to eval revision: {}", r);
+                        add_failed_revision(&format!("{}/{}", &args.processed, channel), r)?;
+                    }
                 }
             }
         }

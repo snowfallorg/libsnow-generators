@@ -5,6 +5,7 @@ use log::{debug, error, info, warn};
 use serde::Deserialize;
 use std::collections::HashMap;
 use tokio::process::Command;
+use anyhow::Result;
 
 #[derive(Deserialize, Debug, Clone)]
 struct Package {
@@ -13,7 +14,7 @@ struct Package {
     version: Option<String>,
 }
 
-pub async fn get_store(rev: &str) -> HashMap<String, Store> {
+pub async fn get_store(rev: &str) -> Result<HashMap<String, Store>> {
     let nixpath = Command::new("nix-instantiate")
         .arg("--eval")
         .arg("-E")
@@ -71,6 +72,14 @@ pub async fn get_store(rev: &str) -> HashMap<String, Store> {
         .expect("failed to execute process");
     }
 
+    if !output.status.success() {
+        error!(
+            "failed to eval revision: {}",
+            rev
+        );
+        return Err(anyhow::anyhow!("failed to eval revision: {}", rev));
+    }
+
     let output: HashMap<String, Package> =
         serde_json::from_slice(&output.stdout).expect("failed to parse nix-instantiate output");
 
@@ -95,5 +104,5 @@ pub async fn get_store(rev: &str) -> HashMap<String, Store> {
 
     info!("nix-instantiate: got {} store paths", store.len());
 
-    return store;
+    return Ok(store);
 }

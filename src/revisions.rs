@@ -131,3 +131,12 @@ pub fn update_markers(dir: &str, revs: HashMap<String, Vec<String>>) -> Result<(
     }
     Ok(())
 }
+
+pub fn add_failed_revision(dir: &str, rev: &str) -> Result<()> {
+    let mut file = fs::OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open(format!("{}/failed", dir))?;
+    file.write_all(format!("{}\n", rev).as_bytes())?;
+    Ok(())
+}
